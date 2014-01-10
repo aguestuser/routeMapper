@@ -8,7 +8,7 @@ $(document).ready(function(){
 //...create instance of tabletop to slurp data from order form spreadsheet
 function initTabletop() {
     tabletop = Tabletop.init({
-    	key: '0AnpExRcGz7ZndHpHM1VuVWVsUVFMMmxwOGM1WWdPN3c', 
+    	key: '0AkfgEUsp5QrAdG50OWc0YjVnY3Q0eEF4b01DZHlQbUE', 
     	callback: showInfo, 
     	simpleSheet: false 
     });
@@ -25,7 +25,7 @@ function showInfo(tabletop) {
 		//store datepicker value
 		date = $('#date').val();
 		//use that value to filter all orders from spreadsheet matching that date
-		orders = filterByDate(callback.tabletop['Orders'].elements, date);
+		orders = filterByDate(callback.tabletop['payments'].elements, date);
 		//if no stop objects exist, construct them, if they exist, replace them
 		stops = typeof(stops) == 'undefined' ? 
 			setStops(gMap, orders) : 
@@ -55,8 +55,12 @@ function filterByDate(orders, date){
 		filter = new Date(date),
 		feeds = [];
 	for (var i = 0; i <orders.length; i++){
-		feeds[i] = new Date(formatDate(orders[i].date));
-		if (feeds[i].getYear() == filter.getYear() && feeds[i].getMonth() == filter.getMonth() && feeds[i].getDate() == filter.getDate()){
+		feeds[i] = new Date(formatDate(orders[i].pickupdate));
+		if (feeds[i].getYear() == filter.getYear() && 
+			feeds[i].getMonth() == filter.getMonth() && 
+			feeds[i].getDate() == filter.getDate() && 
+			orders[i].pickupneeded == 'TRUE'
+		){
 			tempOrders.push(orders[i]);
 		}
 	}
@@ -126,16 +130,11 @@ function Stop(order, index, map) {
 	
 	//clone order data from spreadsheet
 	this.order = {
-		name: order.name, 
-		address: order.streetnumber + ', ' + order.city + ', ' + order.state, 
-		apartment: order.apartment,
-		phone: order.phone,
-		csa: order.csa,
-		shares: order.shares,
-		deliveryWindow: order.deliverywindow,
-		specialRequests: order.specialrequests,
-		payment: order.payment, 
-		amountOwed: order.amountowed,
+		name: order.restaurantname, 
+		address: order.address, 
+		invoiceAmount: order.invoiceamount,
+		totalOwed: order.totalowed,
+		paymentType: order.paymenttype,
 		rowNum: order.rowNumber
 	};
 
@@ -163,16 +162,7 @@ function Stop(order, index, map) {
 	
 	//retrieve stop's icon (dependent on index)
 	this.getIcon = function() {
-		var window = this.order.deliveryWindow.slice(0,1), 
-			colors = {
-			'-': 'grey',
-			'N': 'green',
-			'7': 'yellow',
-			'8': 'orange',
-			'9': 'red',
-			'1': 'pink' 
-		}
-		return'../../../img/icons/numbers/' + colors[window] + '_' + this.index + '.png';
+		return'../../../../img/icons/numbers/green_' + (this.index + 1) + '.png';
 	};
 	
 	//retrieve stop's label (dependent on index)
@@ -214,7 +204,9 @@ function Stop(order, index, map) {
 		var map = this.map,
 			contentStr = '';
 		for (var i in this.order){
-			contentStr +=  '<strong>' + i.charAt(0).toUpperCase() + i.slice(1) + ':</strong> ' + this.order[i] + '<br/>';
+			if (i != 'rowNum'){
+				contentStr +=  '<strong>' + i.charAt(0).toUpperCase() + i.slice(1) + ':</strong> ' + this.order[i] + '<br/>';				
+			}
 		}
 		map.infoWindow = new google.maps.InfoWindow({
 			content: contentStr	
@@ -322,10 +314,10 @@ function appendUrlGetter(){
 }
 
 function getUrl(stops){
-	var url = 'http://badideafactory.net/scripts/routeMapper/v1/routeSharer.html?',
+	var url = 'http://badideafactory.net/scripts/routeMapper/v1/bks/routeSharer.html?',
 		urlObj ={};
 	for (var i=0; i < stops.length; i++){
-		if (url != 'http://badideafactory.net/scripts/routeMapper/v1/routeSharer.html?'){
+		if (url != 'http://badideafactory.net/scripts/routeMapper/v1/bks/routeSharer.html?'){
 			url += '&';
 		}
 		url += 'stop' + i + 'rowNum=' + stops[i].order.rowNum;

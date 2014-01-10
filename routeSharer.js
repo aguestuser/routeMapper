@@ -1,6 +1,3 @@
-
-//for use with routeMapper.js
-
 //On load...
 $(document).ready(function(){ 
 	initTabletop(); 
@@ -9,7 +6,7 @@ $(document).ready(function(){
 //...create instance of tabletop to slurp data from order form spreadsheet
 function initTabletop() {
     tabletop = Tabletop.init({
-    	key: '0AnpExRcGz7ZndHpHM1VuVWVsUVFMMmxwOGM1WWdPN3c', 
+    	key: '0AkfgEUsp5QrAdG50OWc0YjVnY3Q0eEF4b01DZHlQbUE', 
     	callback: showInfo, 
     	simpleSheet: false 
     });
@@ -19,17 +16,18 @@ function initTabletop() {
 //MAIN FUNCTION (callback from Tabletop): 
 function showInfo(data, tabletop) {	
 	//initialize map
-	var map = initMap(),
+	 map = initMap();
 	//parse paramaters from url constructed by routeMapper.html
 		params = parseParams();
-		numStops = params.numStops,
+		numStops = params.numStops;
 	//pull order data from spreadsheet
-		orders = tabletop.models['Orders'].elements,
-	//initialize blank array of stop objects
-		stops = [];
+		orders = tabletop.models['payments'].elements;
+	//initialize blank array of stop objects, make global variable
+	stops = [];
 	//construct stop objects from order data and map them
 	for (var i=0; i < numStops; i++){
 		var rowNum = params['stop' + i + 'rowNum'];
+		console.log('rowNum = ' + rowNum);
 		stops.push(new Stop(map, orders[rowNum -2], i));
 		stops[i]
 			.setMarker()
@@ -78,16 +76,12 @@ function Stop (map, order, i){
 	this.stopNum = i;
 	
 	this.order = {
-		name: order.name,
-		address: order.streetnumber + ', ' + order.city + ', ' + order.state,
-		apartment: order.apartment,
-		phone: order.phone,
-		csa: order.csa,
-		shares: order.shares,
-		deliveryWindow: order.deliverywindow,
-		specialRequests: order.specialrequests,
-		payment: order.payment,
-		amountOwed: order.amountowed	
+		name: order.restaurantname, 
+		address: order.address, 
+		invoiceAmount: order.invoiceamount,
+		totalOwed: order.totalowed,
+		paymentType: order.paymenttype,
+		rowNum: order.rowNumber
 	};
 
 	this.map = {
@@ -115,7 +109,9 @@ function Stop (map, order, i){
 			contentStr = '',
 			that = this;
 		for (var i in this.order){
-			contentStr +=  '<strong>' + i.charAt(0).toUpperCase() + i.slice(1) + ':</strong> ' + this.order[i] + '<br/>';
+			if (i != 'rowNum'){
+				contentStr +=  '<strong>' + i.charAt(0).toUpperCase() + i.slice(1) + ':</strong> ' + this.order[i] + '<br/>';				
+			}
 		}
 		map.infoWindow = new google.maps.InfoWindow({
 			content: contentStr	
@@ -129,16 +125,7 @@ function Stop (map, order, i){
 	}
 	
 	this.getIcon = function(){
-		var window = this.order.deliveryWindow.slice(0,1), 
-			colors = {
-				'-': 'grey',
-				'N': 'green',
-				'7': 'yellow',
-				'8': 'orange',
-				'9': 'red',
-				'1': 'pink' 
-			};
-		return'../../../img/icons/numbers/' + colors[window] + '_' + (i +1) + '.png';
+		return '../../../../img/icons/numbers/green_' + (i + 1) + '.png';
 	}
 };
 
@@ -148,5 +135,5 @@ function clearInfoWindows(stops, stopNum){
 			if (stops[i].map.infoWindow) stops[i].map.infoWindow.close();
 		}
 	}
-}
+};
 

@@ -1,10 +1,12 @@
 Version 1.0
-11/14/2013
+1/8/2013
 ___________
+
+OUT OF DATE! UPDATE FOR BKS VERSION!
 
 depenencies:
 - jquery
-- tabletop.js
+- tabletop.js1
 - google maps api
 _____________
 - pulls order data from google spreadsheet
