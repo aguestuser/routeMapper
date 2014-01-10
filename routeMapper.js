@@ -1,3 +1,5 @@
+console.log('syncing works!')
+
 //On load...
 $(document).ready(function(){ 
 	initTabletop(); 
@@ -22,9 +24,9 @@ function showInfo(tabletop) {
 	$('#pick-date').click(function(){
 
 		//store datepicker value
-		var	date = $('#date').val(),
+			date = $('#date').val();
 		//filter all orders from spreadsheet matching datepicker date and store them as dropoffs
-			dropoffs = filterOrders(callback.tabletop['Orders'].elements, date),
+			dropoffs = filterOrders(callback.tabletop['Orders'].elements, date);
 		//filter all csas specified in dropoffs and store them as pickups 
 			pickups = getActivePickups(callback.tabletop['Pickups'].elements, dropoffs);
 
@@ -44,13 +46,15 @@ function showInfo(tabletop) {
 
 //initialize map centered on Crown Heights Farm Share
 function initMap() {
-	gooGeo = new google.maps.LatLng(40.674799, -73.954362);
-		mapOptions = {
-			center: gooGeo,
-			zoom: 13,
-			mapTypeId: google.maps.MapTypeId.ROADMAP
-		};
-	return new google.maps.Map(document.getElementById('map-canvas'),mapOptions);
+	var map = L.map('map-canvas', {
+		center: [40.674799, -73.954362],
+		zoom: 13
+	});
+	L.tileLayer('http://{s}.tile.cloudmade.com/a709cb849b29495cb18f11b31675dfd1/997/256/{z}/{x}/{y}.png', {
+        attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://cloudmade.com">CloudMade</a>',
+        maxZoom: 18
+    }).addTo(map);
+    return map;
 };
 
 function filterOrders(orders, date){
@@ -96,13 +100,13 @@ function getActivePickups(pickups, dropoffs){
 		}				
 	}
 	return activePickups;
-}
+};
 
 // Stores spreadsheet data in variables, creates array of stop objects for use in mapping
 function mapStops(map, pickups, dropoffs){
 
 	//concatenate a temp array of pickups and dropoffs and a blank array for formated stop objects
-	var	protoStops = pickups.concat(dropoffs),
+		var protoStops = pickups.concat(dropoffs),
 		stops = [];
 
 	//construct stop objects
@@ -115,7 +119,6 @@ function mapStops(map, pickups, dropoffs){
 		stops.push(new Stop(protoStops[i], i, map));
 		stops[i]
 			.setMarker()
-			.setInfoWindow()
 			.appendLabel()
 			.enableSwap();
 	}
@@ -128,7 +131,7 @@ function remapStops(map, pickups, dropoffs){
 	$('#stops').empty();
 	$('#url-wrapper').remove();
 	for (var i = 0; i < stops.length; i++){
-		stops[i].map.infoWindow.setMap(null);
+		stops[i].map.popup.setMap(null);
 		stops[i].map.marker.setMap(null);
 		delete stops[i];	
 	}
@@ -181,7 +184,7 @@ function Stop(node, index, map) {
 		lat: node.lat,
 		lng: node.lng,
 		marker : {}, //<-- set later with accessor method
-		infoWindow: {} //<-- set later with accessor method
+		popup: {} //<-- set later with accessor method
 	};
 
 	//METHODS
@@ -198,7 +201,7 @@ function Stop(node, index, map) {
 	};	
 	
 	//retrieve stop's icon (dependent on index)
-	this.getIcon = function() {
+	this.getIconUrl = function() {
 		if (this.type == 'dropoff'){
 			var window = this.data.deliveryWindow.slice(0,1), 
 				colors = {
@@ -217,7 +220,7 @@ function Stop(node, index, map) {
 	
 	//retrieve stop's label (dependent on index)
 	this.getLabel = function(){
-		return '<div class="stop-container" id="stop-container' + this.index + '" style="top: ' + this.index*this.spacingUnit + '"><div class="stop-wrapper" id="stop-wrapper' + this.index + '"><img class ="stop-icon" id="stop-icon' + this.index + '"src="' + this.getIcon() + '"/><div class="stop-text">' + this.data.address + '</div></div></div>';		
+		return '<div class="stop-container" id="stop-container' + this.index + '" style="top: ' + this.index*this.spacingUnit + '"><div class="stop-wrapper" id="stop-wrapper' + this.index + '"><img class ="stop-icon" id="stop-icon' + this.index + '"src="' + this.getIconUrl() + '"/><div class="stop-text">' + this.data.address + '</div></div></div>';		
 	};
 
 	//adds stop labels to DOM according to specifications in stop.label
@@ -234,50 +237,62 @@ function Stop(node, index, map) {
 	
 	//creates stop markers on a pre-initialized google map (icon dependent on index)
 	this.setMarker = function(){
-		var gooGeo = new google.maps.LatLng(this.map.lat, this.map.lng);
-		this.map.marker = new google.maps.Marker({
-			map: this.map.map,
-	    	position: gooGeo,
-	    	title: this.data.address,
-	    	icon: this.getIcon()
-	    });
+		this.map.marker = L.marker([this.map.lat, this.map.lng], {
+			title: this.data.address,
+			clickable: true,
+			icon: L.icon({
+				iconUrl: this.getIconUrl()
+			})
+		})
+			.addTo(this.map.map)
+			.bindPopup(this.getPopUpStr())
+			.openPopup;
+
 	    return this;
 	};
 	
 	this.replaceMarker = function(){
-		this.map.marker.setIcon(this.getIcon());
+		this.map.marker.setIcon(this.getIconUrl());
 		return this;
-	}
+	};
 	
-	
-	this.setInfoWindow = function(){
+	this.getPopUpStr = function(){
+		var contentStr = '';
+				for (var i in this.data){
+			contentStr +=  '<strong>' + i.charAt(0).toUpperCase() + i.slice(1) + ':</strong> ' + this.data[i] + '<br/>';
+		}
+		return contentStr;
+	};
+
+	/*
+	this.setPopup = function(){
 		var map = this.map,
 			contentStr = '';
 		for (var i in this.data){
 			contentStr +=  '<strong>' + i.charAt(0).toUpperCase() + i.slice(1) + ':</strong> ' + this.data[i] + '<br/>';
 		}
-		map.infoWindow = new google.maps.InfoWindow({
-			content: contentStr	
-		});
-		google.maps.event.addListener(map.marker, 'click', function() {
-		    clearInfoWindows(stops, that.index);
-		    map.infoWindow.open(map.map, map.marker);
-		});
+		map.popup = L.popup()
+			.setLatLng(L.latLng(this.map.lat, this.map.lng))
+			.setContent(contentStr)
+			.openOn(map);
 		
 		return this;
 	}	
+	*/
 	this.enableSwap = function(){
 		enableSwap(this);
 	};
 	return this;
 }; 
 
-function clearInfoWindows(stops, index){
+/*
+function clearpopups(stops, index){
 	for (var i=0; i<stops.length; i++){
 		if (i !== index)
-		stops[i].map.infoWindow.close();
+		stops[i].map.popup.close();
 	}
 }
+*/
 
 function enableSwap(stop){ // <-- make this a method of Stop()?
 	
@@ -359,10 +374,10 @@ function appendUrlGetter(){
 }
 
 function getUrl(stops){
-	var url = 'http://badideafactory.net/scripts/routeMapper/v2/routeSharer.html?',
+	var url = 'http://badideafactory.net/scripts/routeMapper/v3/routeSharer.html?',
 		urlObj ={};
 	for (var i=0; i < stops.length; i++){
-		if (url != 'http://badideafactory.net/scripts/routeMapper/v2/routeSharer.html?'){
+		if (url != 'http://badideafactory.net/scripts/routeMapper/v3/routeSharer.html?'){
 			url += '&';
 		}
 		url +=  'stop' + i + 'id=' + stops[i].data.id + '&stop' + i + 'type=' + stops[i].type;

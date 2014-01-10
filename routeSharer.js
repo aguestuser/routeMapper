@@ -36,8 +36,8 @@ function showInfo(tabletop) {
 	for (var i=0; i < numStops; i++){
 		//determine if each stop is a pickup or dropoff, and pass data from appropriate model to stop mapping function
 		params['stop' + i + 'type'] == 'pickup'? 
-			mapStop(map, pickups[params['stop' + i + 'id']], 'pickup', i) :
-			mapStop(map, dropoffs[params['stop' + i + 'id']], 'dropoff', i);
+			mapStop(pickups[params['stop' + i + 'id']], 'pickup', i) :
+			mapStop(dropoffs[params['stop' + i + 'id']], 'dropoff', i);
 	}
 };
 //******************************************
@@ -75,9 +75,9 @@ function parseParams(){
 };
 
 //construct stop objects and map them	
-function mapStop(map, node, type, index){
+function mapStop(node, type, index){
 	showInfo.stops.push(new Stop(map, node, type, index));
-	showInfo.stops[index]
+	showInfo.stops[i]
 		.setMarker()
 		.setInfoWindow();
 };
