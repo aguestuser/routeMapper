@@ -1,3 +1,6 @@
+
+//for use with routeMapper.js
+
 //On load...
 $(document).ready(function(){ 
 	initTabletop(); 
@@ -6,7 +9,7 @@ $(document).ready(function(){
 //...create instance of tabletop to slurp data from order form spreadsheet
 function initTabletop() {
     tabletop = Tabletop.init({
-    	key: '0AkfgEUsp5QrAdG50OWc0YjVnY3Q0eEF4b01DZHlQbUE', 
+    	key: '0AnpExRcGz7ZndHpHM1VuVWVsUVFMMmxwOGM1WWdPN3c', 
     	callback: showInfo, 
     	simpleSheet: false 
     });
@@ -14,25 +17,28 @@ function initTabletop() {
 
 //*****************************************
 //MAIN FUNCTION (callback from Tabletop): 
-function showInfo(data, tabletop) {	
+function showInfo(tabletop) {	
 	//initialize map
-	 map = initMap();
+	var	map = initMap(),
 	//parse paramaters from url constructed by routeMapper.html
-		params = parseParams();
-		numStops = params.numStops;
-	//pull order data from spreadsheet
-		orders = tabletop.models['payments'].elements;
-	//initialize blank array of stop objects, make global variable
-	stops = [];
-	//construct stop objects from order data and map them
+		params = parseParams(),
+		numStops = params.numStops,
+	//store data from Orders model as array of dropoff objects
+		dropoffs = tabletop['Orders'].elements,
+	//filter data from Pickups model for all csas specified in dropoffs and store them as arry of pickup objects 
+		pickups = tabletop['Pickups'].elements;
+	
+	//create blank global array to hold stop objects
+	this.stops = [];
+	showInfo = this;
+
+	//loop through stop numbers specified in params
 	for (var i=0; i < numStops; i++){
-		var rowNum = params['stop' + i + 'rowNum'];
-		console.log('rowNum = ' + rowNum);
-		stops.push(new Stop(map, orders[rowNum -2], i));
-		stops[i]
-			.setMarker()
-			.setInfoWindow();
-	}		
+		//determine if each stop is a pickup or dropoff, and pass data from appropriate model to stop mapping function
+		params['stop' + i + 'type'] == 'pickup'? 
+			mapStop(map, pickups[params['stop' + i + 'id']], 'pickup', i) :
+			mapStop(map, dropoffs[params['stop' + i + 'id']], 'dropoff', i);
+	}
 };
 //******************************************
 
@@ -68,26 +74,45 @@ function parseParams(){
 	return oGetVars;
 };
 
+//construct stop objects and map them	
+function mapStop(map, node, type, index){
+	showInfo.stops.push(new Stop(map, node, type, index));
+	showInfo.stops[index]
+		.setMarker()
+		.setInfoWindow();
+};
+
 //STOP CONSTRUCTOR FUNCTION (does bulk of the work)
-function Stop (map, order, i){
+function Stop (map, node, type, index){
 	
-	that = this;
+	this.index = index;
+	this.type = type;
 	
-	this.stopNum = i;
-	
-	this.order = {
-		name: order.restaurantname, 
-		address: order.address, 
-		invoiceAmount: order.invoiceamount,
-		totalOwed: order.totalowed,
-		paymentType: order.paymenttype,
-		rowNum: order.rowNumber
-	};
+	if (this.type == 'dropoff'){
+		//clone order data from spreadsheet
+		this.data = {
+			name: node.name, 
+			address: node.streetnumber + ', ' + node.city + ', ' + node.state, 
+			apartment: node.apartment,
+			phone: node.phone,
+			csa: node.csa,
+			shares: node.shares,
+			deliveryWindow: node.deliverywindow,
+			specialRequests: node.specialrequests,
+			payment: node.payment, 
+			amountOwed: node.amountowed
+		};
+	} else if (this.type == 'pickup'){
+		this.data = {
+			name: node.name,
+			address: node.address
+		}
+	}
 
 	this.map = {
 		map: map,
-		lat: order.lat,
-		lng: order.lng,
+		lat: node.lat,
+		lng: node.lng,
 		marker : {}, //<-- set later with accessor method
 		infoWindow: {} //<-- set later with accessor method
 	};
@@ -98,7 +123,7 @@ function Stop (map, order, i){
 		this.map.marker = new google.maps.Marker({
 			map: this.map.map,
 	    	position: gooGeo,
-	    	title: this.order.address,
+	    	title: this.data.address,
 	    	icon: this.getIcon()
 	    });
 	    return this;
@@ -108,32 +133,43 @@ function Stop (map, order, i){
 		var map = this.map,
 			contentStr = '',
 			that = this;
-		for (var i in this.order){
-			if (i != 'rowNum'){
-				contentStr +=  '<strong>' + i.charAt(0).toUpperCase() + i.slice(1) + ':</strong> ' + this.order[i] + '<br/>';				
-			}
+		for (var i in this.data){
+			contentStr +=  '<strong>' + i.charAt(0).toUpperCase() + i.slice(1) + ':</strong> ' + this.data[i] + '<br/>';
 		}
 		map.infoWindow = new google.maps.InfoWindow({
 			content: contentStr	
 		});
 		google.maps.event.addListener(map.marker, 'click', function() {
 		    map.infoWindow.open(map.map, map.marker);
-		    clearInfoWindows(stops, that.stopNum);
+		    clearInfoWindows(showInfo.stops, that.index);
 		});
 		
 		return this;
 	}
 	
 	this.getIcon = function(){
-		return '../../../../img/icons/numbers/green_' + (i + 1) + '.png';
-	}
+		if (this.type == 'dropoff'){
+			var window = this.data.deliveryWindow.slice(0,1), 
+				colors = {
+				'-': 'grey',
+				'N': 'green',
+				'7': 'yellow',
+				'8': 'orange',
+				'9': 'red',
+				'1': 'pink' 
+			};
+			return'../../../img/icons/numbers/' + colors[window] + '_' + this.index + '.png';	
+		} else if (this.type == 'pickup') {
+			return'../../../img/icons/numbers/grey_' + this.index + '.png';
+		}
+	};
 };
 
-function clearInfoWindows(stops, stopNum){
+function clearInfoWindows(stops, index){
 	for (var i=0; i<stops.length; i++){
-		if (i !== stopNum){
+		if (i !== index){
 			if (stops[i].map.infoWindow) stops[i].map.infoWindow.close();
 		}
 	}
-};
+}
 

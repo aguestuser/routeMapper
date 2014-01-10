@@ -3,12 +3,10 @@ $(document).ready(function(){
 	initTabletop(); 
 });
 
-
-
 //...create instance of tabletop to slurp data from order form spreadsheet
 function initTabletop() {
     tabletop = Tabletop.init({
-    	key: '0AkfgEUsp5QrAdG50OWc0YjVnY3Q0eEF4b01DZHlQbUE', 
+    	key: '0AnpExRcGz7ZndHpHM1VuVWVsUVFMMmxwOGM1WWdPN3c', 
     	callback: showInfo, 
     	simpleSheet: false 
     });
@@ -19,17 +17,22 @@ function initTabletop() {
 function showInfo(tabletop) {
 	this.tabletop = tabletop;
 	callback = this;
-	gMap = initMap();
+	map = initMap();
 
 	$('#pick-date').click(function(){
+
 		//store datepicker value
-		date = $('#date').val();
-		//use that value to filter all orders from spreadsheet matching that date
-		orders = filterByDate(callback.tabletop['payments'].elements, date);
-		//if no stop objects exist, construct them, if they exist, replace them
+		var	date = $('#date').val(),
+		//filter all orders from spreadsheet matching datepicker date and store them as dropoffs
+			dropoffs = filterOrders(callback.tabletop['Orders'].elements, date),
+		//filter all csas specified in dropoffs and store them as pickups 
+			pickups = getActivePickups(callback.tabletop['Pickups'].elements, dropoffs);
+
+		//construct stop objects or replace them if they already exist
 		stops = typeof(stops) == 'undefined' ? 
-			setStops(gMap, orders) : 
-			replaceStops(gMap, orders);
+			mapStops(map, pickups, dropoffs) : 
+			remapStops(map, pickups, dropoffs);
+		
 		//on click, retrieve a bit.ly permalink for the map
 		$('#url-button').click(function(){
 			getUrl(stops);
@@ -50,17 +53,13 @@ function initMap() {
 	return new google.maps.Map(document.getElementById('map-canvas'),mapOptions);
 };
 
-function filterByDate(orders, date){
+function filterOrders(orders, date){
 	var tempOrders = [],
 		filter = new Date(date),
 		feeds = [];
 	for (var i = 0; i <orders.length; i++){
-		feeds[i] = new Date(formatDate(orders[i].pickupdate));
-		if (feeds[i].getYear() == filter.getYear() && 
-			feeds[i].getMonth() == filter.getMonth() && 
-			feeds[i].getDate() == filter.getDate() && 
-			orders[i].pickupneeded == 'TRUE'
-		){
+		feeds[i] = new Date(formatDate(orders[i].date));
+		if (feeds[i].getYear() == filter.getYear() && feeds[i].getMonth() == filter.getMonth() && feeds[i].getDate() == filter.getDate()){
 			tempOrders.push(orders[i]);
 		}
 	}
@@ -83,66 +82,104 @@ function formatDate(date){
 			});
 };
 
+function getActivePickups(pickups, dropoffs){
+	var activePickups = [];
+	//loop pickup objects
+	for (var i = 0; i < pickups.length; i++){
+		//loop  through dropoff objects
+		for (var j = 0; j < dropoffs.length; j++){
+			//if order contains csa name set csa.hasOrders to true and stop looping through orders, resume looping through csas
+			if (pickups[i].name == dropoffs[j].csa){
+				activePickups.push(pickups[i]);
+				break;
+			}
+		}				
+	}
+	return activePickups;
+}
+
 // Stores spreadsheet data in variables, creates array of stop objects for use in mapping
-function setStops(map, orders){
+function mapStops(map, pickups, dropoffs){
 
-	//store order data as array of objects and delete extraneous objects
-	var stops = [];
+	//concatenate a temp array of pickups and dropoffs and a blank array for formated stop objects
+	var	protoStops = pickups.concat(dropoffs),
+		stops = [];
 
-	//build stop objects based off order data
-	for (var i = 0; i < orders.length; i++){
-		stops[i] = new Stop(orders[i], i, map);
+	//construct stop objects
+	for (var i = 0; i < protoStops.length; i++){
+		if (i < pickups.length){
+			protoStops[i]['type'] = 'pickup';
+		} else {
+			protoStops[i]['type'] = 'dropoff';
+		}
+		stops.push(new Stop(protoStops[i], i, map));
 		stops[i]
-			.setMarker(gMap)
-			.setInfoWindow(gMap)
+			.setMarker()
+			.setInfoWindow()
 			.appendLabel()
 			.enableSwap();
 	}
-	appendUrlGetter();
+	appendUrlGetter();	
 	return stops;
 };
 
-function replaceStops(map, orders){
-	$('#route-stops').empty();
+//replace stop objects (when mapping stops for a secod time on same page)
+function remapStops(map, pickups, dropoffs){
+	$('#stops').empty();
+	$('#url-wrapper').remove();
 	for (var i = 0; i < stops.length; i++){
 		stops[i].map.infoWindow.setMap(null);
 		stops[i].map.marker.setMap(null);
 		delete stops[i];	
 	}
-	return setStops(map, orders);
+	return mapStops(map, pickups, dropoffs);
 };
 
 
 //*****************************************************
 //*STOP CONSTRUCTOR FUNCTION (does the bulk of the work)
-function Stop(order, index, map) {	
-	
+function Stop(node, index, map) {	
+
 	//PROPERTIES
 	
 	//set reference variable for closures
 	that = this;
-	
+	//store the node's stop type
+	this.type = node.type;
 	//store the stop's index value
 	this.index = index;
-
-	//set spacing unit for labels based off routeMapper.html's css
+	//set spacing unit for labels based off routeMapper.html's css	
 	this.spacingUnit = 32;
+
 	
-	//clone order data from spreadsheet
-	this.order = {
-		name: order.restaurantname, 
-		address: order.address, 
-		invoiceAmount: order.invoiceamount,
-		totalOwed: order.totalowed,
-		paymentType: order.paymenttype,
-		rowNum: order.rowNumber
-	};
+	if (this.type == 'dropoff'){
+		//clone order data from spreadsheet
+		this.data = {
+			name: node.name, 
+			address: node.streetnumber + ', ' + node.city + ', ' + node.state, 
+			apartment: node.apartment,
+			phone: node.phone,
+			csa: node.csa,
+			shares: node.shares,
+			deliveryWindow: node.deliverywindow,
+			specialRequests: node.specialrequests,
+			payment: node.payment, 
+			amountOwed: node.amountowed,
+			id: node.id
+		};
+	} else if (this.type == 'pickup'){
+		this.data = {
+			name: node.name,
+			address: node.address,
+			id: node.id
+		}
+	}
 
 	//store initialized map and stop's geocode; leave space for creating its marker and info window
 	this.map = {
 		map: map,
-		lat: order.lat,
-		lng: order.lng,
+		lat: node.lat,
+		lng: node.lng,
 		marker : {}, //<-- set later with accessor method
 		infoWindow: {} //<-- set later with accessor method
 	};
@@ -162,17 +199,30 @@ function Stop(order, index, map) {
 	
 	//retrieve stop's icon (dependent on index)
 	this.getIcon = function() {
-		return'../../../../img/icons/numbers/green_' + (this.index + 1) + '.png';
+		if (this.type == 'dropoff'){
+			var window = this.data.deliveryWindow.slice(0,1), 
+				colors = {
+				'-': 'grey',
+				'N': 'green',
+				'7': 'yellow',
+				'8': 'orange',
+				'9': 'red',
+				'1': 'pink' 
+			};
+			return'../../../img/icons/numbers/' + colors[window] + '_' + this.index + '.png';	
+		} else if (this.type == 'pickup') {
+			return'../../../img/icons/numbers/grey_' + this.index + '.png';
+		}
 	};
 	
 	//retrieve stop's label (dependent on index)
 	this.getLabel = function(){
-		return '<div class="stop-container" id="stop-container' + this.index + '" style="top: ' + this.index*this.spacingUnit + '"><div class="stop-wrapper" id="stop-wrapper' + this.index + '"><img class ="stop-icon" id="stop-icon' + this.index + '"src="' + this.getIcon() + '"/><div class="stop-text">' + this.order.address + '</div></div></div>';		
+		return '<div class="stop-container" id="stop-container' + this.index + '" style="top: ' + this.index*this.spacingUnit + '"><div class="stop-wrapper" id="stop-wrapper' + this.index + '"><img class ="stop-icon" id="stop-icon' + this.index + '"src="' + this.getIcon() + '"/><div class="stop-text">' + this.data.address + '</div></div></div>';		
 	};
 
 	//adds stop labels to DOM according to specifications in stop.label
 	this.appendLabel = function() {
-		$('#route-stops').append(this.getLabel());
+		$('#stops').append(this.getLabel());
 		return this;
 	};
 	
@@ -188,7 +238,7 @@ function Stop(order, index, map) {
 		this.map.marker = new google.maps.Marker({
 			map: this.map.map,
 	    	position: gooGeo,
-	    	title: this.order.address,
+	    	title: this.data.address,
 	    	icon: this.getIcon()
 	    });
 	    return this;
@@ -203,10 +253,8 @@ function Stop(order, index, map) {
 	this.setInfoWindow = function(){
 		var map = this.map,
 			contentStr = '';
-		for (var i in this.order){
-			if (i != 'rowNum'){
-				contentStr +=  '<strong>' + i.charAt(0).toUpperCase() + i.slice(1) + ':</strong> ' + this.order[i] + '<br/>';				
-			}
+		for (var i in this.data){
+			contentStr +=  '<strong>' + i.charAt(0).toUpperCase() + i.slice(1) + ':</strong> ' + this.data[i] + '<br/>';
 		}
 		map.infoWindow = new google.maps.InfoWindow({
 			content: contentStr	
@@ -233,9 +281,6 @@ function clearInfoWindows(stops, index){
 
 function enableSwap(stop){ // <-- make this a method of Stop()?
 	
-	this.spacingUnit = stop.spacingUnit
-	var swap = this;
-
 	// make route elements draggable
 	$('#stop-wrapper' + stop.index).draggable({
 		snap: '.stop-container', 
@@ -247,7 +292,7 @@ function enableSwap(stop){ // <-- make this a method of Stop()?
 			//use the id of the dragged wrapper to retrieve its stop's original index
 			oldIndex = parseInt($(this).attr('id').replace('stop-wrapper', ''));
 			//caculate how many units the wrapper has been dragged
-			unitsShifted = (parseInt($(this).css('top').replace('px', '')) / swap.spacingUnit);
+			unitsShifted = (parseInt($(this).css('top').replace('px', '')) / stop.spacingUnit);
 			//generate the new index to be assigned to the wrapper's stop, corresponding to its new location
 			newIndex = oldIndex + unitsShifted;
 			//store the dragged stop in a temp var
@@ -294,7 +339,7 @@ function enableSwap(stop){ // <-- make this a method of Stop()?
 					//generate new label corresponding to stop's new index (top value and icon will be different)
 					.replaceLabel()
 					//generate new marker corresponding to stop's new index (icon will be different)
-					.replaceMarker(gMap)
+					.replaceMarker()
 					//enable swapping on stop's new label
 					.enableSwap();
 			};
@@ -310,17 +355,17 @@ function enableSwap(stop){ // <-- make this a method of Stop()?
 //****************************************************************
 
 function appendUrlGetter(){
-	$('#route-stops').append('<div id="url-wrapper"><button type="button" id="url-button">Get URL</button></div>');		    
+	$('#route-wrapper').append('<div id="url-wrapper"><button type="button" id="url-button">Get URL</button></div>');		    
 }
 
 function getUrl(stops){
-	var url = 'http://badideafactory.net/scripts/routeMapper/v1/bks/routeSharer.html?',
+	var url = 'http://badideafactory.net/scripts/routeMapper/v2/routeSharer.html?',
 		urlObj ={};
 	for (var i=0; i < stops.length; i++){
-		if (url != 'http://badideafactory.net/scripts/routeMapper/v1/bks/routeSharer.html?'){
+		if (url != 'http://badideafactory.net/scripts/routeMapper/v2/routeSharer.html?'){
 			url += '&';
 		}
-		url += 'stop' + i + 'rowNum=' + stops[i].order.rowNum;
+		url +=  'stop' + i + 'id=' + stops[i].data.id + '&stop' + i + 'type=' + stops[i].type;
 	}
 	url += '&numStops=' + stops.length;
 	console.log(url);

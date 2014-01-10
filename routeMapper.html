@@ -8,11 +8,10 @@
       body { height: 100%; margin: 0; padding: 0; }
       #route-container {float: left; width: 30%; }
       #route-wrapper {padding:5px}
-      #route-header {padding: 5px; border:1px solid black;}
-      #route-stops {position: absolute; width: 30%;}
-      .stop-container {margin: 5px 10px 5px 0px;}
+      #datepicker, #url-wrapper {padding: 5px; border:1px solid black;}
+      .stop-container {margin: 5px 0px 5px 0px;}
       .stop-wrapper {padding: 5px; border:1px solid black; font-size: small;}
-      .stop-icon {float: left; position: relative; top: -.15em; height: 1.75em;}
+      .stop-icon {float: left; position: relative; top: -.30em; height: 1.75em;}
       .stop-text {display: inline-block; margin-left: 5px;}
       #map-wrapper {position: relative; display: inline-block; width: 70%; height: 100%;}
       #map-canvas {position: relative; height: 100%; width: 100%;}      
@@ -24,9 +23,7 @@
     <!-- Include jQuery UI -->
     <script type='text/javascript' src='http://code.jquery.com/ui/1.10.3/jquery-ui.js'></script>
     <!-- Include Tabletop -->
-    <script type='text/javascript'src='../../../tabletop.js'></script>    
-	<!-- Include custom geocoder object -->
-    <script type='text/javascript' src ='../../../openGeocoder.js'></script>
+    <script type='text/javascript'src='../../tabletop.js'></script>    
     <!-- Use Tabletop to retrieve order data from google form -->
     <script type='text/javascript' src ='routeMapper.js'></script>
 
@@ -35,11 +32,11 @@
   <body>
     <div id= 'route-container'>
 		<div id="route-wrapper">
-			<div id="route-header">
+			<div id="datepicker">
 		    	Make route for: <input type="date" name="date" id="date"> <button type="button" id="pick-date">Go!</button>
 			</div>
-			<div id="route-stops">
-		    </div>
+			<div id="stops">
+		  </div>
 		</div>    
     </div>
 
